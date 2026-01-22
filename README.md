@@ -3,11 +3,40 @@
 This document provides instructions on how to install a custom scheduler
 in our managed Kubernetes instance.  
 
+## Motivation
+
+The default scheduler built into Kubernetes is called `LeastAllocated` and
+aims to assign pods in manner that optimizes availability by spreading
+multiple process over as many nodes (and affects a round robin style
+scheduling).  This prevents hot spots and over-provisioning.  However, in
+many GPU workloads we want to prevent fragmentation and thus maximize
+utilization on all nodes.  To this end `kube-scheduler` offers two other
+strategies for assigning workloads: `MostAllocated` and
+`RequestedToCapacityRatio`.  Both attempt to achieve bin packing and
+reduce fragmentation in similar ways by weighting each resource type
+(CPUs, memory, and of course GPUs) and then using those weights to
+prioritize each packing each resource type.  
+
+## Overview
+
+Because the we use Nebius’s Managed Kubernetes (mk8s) we don’t have
+access to the `kube-scheduler` config files we can’t change what the
+default scheduler is, however, we can run an alternative scheduler as a
+pod that implements bin packing and add the `spec.schedulerName` to the
+pod template.  There is two ways to do it: 1) manually add it to each
+and every pod or 2) use a mutating webhook to add the same field
+specifying our new alternative scheduler to be used for scheduling the
+new pods.  We can achieve the second by using
+[OPA Gatekeeper](https://github.com/open-policy-agent/gatekeeper)
+to act as a mutating webhook.  In the settings below, we only modify
+pods in the default namespace but this can be configured to be more
+expansive.  It may not be safe to modify all new pods in all namespaces.
+
 ## Instructions
 
 1. Edit lines 47-71, in `bp-scheduler.yaml` to set the correct scheduler
-   and parameters.  Currently set for sane values for one of the two
-   default bin packing schedulers.
+   and parameters.  By default this is set to be sane values for one of
+   the two default bin packing schedulers.
 2. Run:
 
    ```bash
